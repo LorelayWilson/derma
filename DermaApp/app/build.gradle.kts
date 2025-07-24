@@ -40,7 +40,7 @@ android {
 }
 
 dependencies {
-    //implementation("com.theartofdev.edmodo:android-image-cropper:2.8.0")
+    implementation(libs.vanniktech.android.image.cropper)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

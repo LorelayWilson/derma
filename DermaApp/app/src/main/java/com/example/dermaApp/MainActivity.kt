@@ -1,6 +1,7 @@
 package com.example.dermaApp
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -26,10 +27,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
@@ -48,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,24 +72,19 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import coil.compose.AsyncImage
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.ImageLoader
+import coil.compose.AsyncImage
 import coil.util.DebugLogger
+import com.canhub.cropper.CropImageView
 import com.example.dermaApp.ui.theme.MyApplicationTheme
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import android.os.Build
-import android.provider.MediaStore
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -123,6 +119,26 @@ fun DermaAppNavigator() {
     val onImageProcessed: (Uri?) -> Unit = { newUri ->
         Log.d("DermaApp_NAV_UPDATE", "Updating imageUriAsync to: $newUri")
         imageUriAsync = newUri
+        currentScreen = Screen.Main
+    }
+    val cropActivityLauncher = rememberLauncherForActivityResult(
+        contract = com.canhub.cropper.CropImageContract()
+    ) { result ->
+        if (result.isSuccessful) {
+            val croppedUri = result.uriContent
+            if (croppedUri != null) {
+                Log.d("CROP_RESULT", "Imagen recortada exitosamente por la librería: $croppedUri")
+                Toast.makeText(context, "Imagen recortada", Toast.LENGTH_SHORT).show()
+                onImageProcessed(croppedUri)
+            } else {
+                Log.e("CROP_RESULT", "cropResult Uri is null even though result is successful.")
+                Toast.makeText(context, "Error al obtener URI recortada", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val exception = result.error
+            Log.e("CROP_ERROR", "Error al recortar imagen con la librería", exception)
+            Toast.makeText(context, "Error al recortar: ${exception?.message}", Toast.LENGTH_LONG).show()
+        }
     }
     when (val screen = currentScreen) {
         is Screen.Main -> {
@@ -137,92 +153,25 @@ fun DermaAppNavigator() {
         is Screen.FullScreenImage -> {
             DermaAppFullScreenImage(
                 uri = screen.uri,
-                onDismiss = onDismissFullScreenImage,
+                //onDismiss = onDismissFullScreenImage,
+                onDismiss = {
+                  val window = (context as? Activity)?.window
+                  window?.let {
+                      val insetsController = WindowCompat.getInsetsController(it, it.decorView)
+                      insetsController.show(WindowInsetsCompat.Type.systemBars())
+                  }
+                  onDismissFullScreenImage()
+                },
                 onCrop = { uriToCrop ->
-                    CoroutineScope(Dispatchers.Main).launch {
-                        val croppedUri = cropImageAndGetUri(context, uriToCrop)
-                        if (croppedUri != null) {
-                            try {
-                                Log.d("NAV_CROP_TEST", "Intentando cargar bitmap desde cropped URI: $croppedUri")
-                                val testBitmap = uriToBitmap(context, croppedUri)
-                                if (testBitmap != null) {
-                                    Log.d("NAV_CROP_TEST", "Bitmap cargado exitosamente desde cropped URI. Ancho: ${testBitmap.width}")
-                                } else {
-                                    Log.e("NAV_CROP_TEST", "FALLO al cargar bitmap desde cropped URI.")
-                                }
-                            } catch (e: Exception) {
-                                Log.e("NAV_CROP_TEST", "Excepción al cargar bitmap desde cropped URI", e)
-                            }
-                            Toast.makeText(context, "Imagen recortada", Toast.LENGTH_SHORT).show()
-                            onImageProcessed(croppedUri)
-                        } else {
-                            Toast.makeText(context, "Error al recortar", Toast.LENGTH_SHORT).show()
-                            onImageProcessed(uriToCrop)
-                        }
-                    }
+                    val cropOptions = com.canhub.cropper.CropImageContractOptions(
+                        uri = uriToCrop,
+                        cropImageOptions = com.canhub.cropper.CropImageOptions(
+                            guidelines = CropImageView.Guidelines.ON
+                        )
+                    )
+                    cropActivityLauncher.launch(cropOptions)
                 }
             )
-        }
-    }
-}
-suspend fun uriToBitmap(context: Context, uri: Uri): Bitmap? {
-    return withContext(Dispatchers.IO) {
-        try {
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri))
-            } else {
-                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-            }
-        } catch (e: Exception) {
-            Log.e("UriToBitmap", "Error converting Uri to Bitmap", e)
-            null
-        }
-    }
-}
-
-suspend fun cropImageAndGetUri(context: Context, sourceUri: Uri): Uri? {
-    return withContext(Dispatchers.IO) {
-        val originalBitmap = uriToBitmap(context, sourceUri) ?: return@withContext null
-        val originalWidth = originalBitmap.width
-        val originalHeight = originalBitmap.height
-        val targetWidth = (originalWidth * 0.8).toInt()
-        val targetHeight = (originalHeight * 0.8).toInt()
-        val x = (originalWidth - targetWidth) / 2
-        val y = (originalHeight - targetHeight) / 2
-        if (targetWidth <= 0 || targetHeight <= 0) {
-            Log.e("Crop", "Dimensiones de recorte inválidas")
-            return@withContext sourceUri
-        }
-        val croppedBitmap = try {
-            Bitmap.createBitmap(originalBitmap, x, y, targetWidth, targetHeight)
-        } catch (e: Exception) {
-            Log.e("Crop", "Error al crear bitmap recortado", e)
-            return@withContext sourceUri
-        }
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val imageFileName = "CROPPED_${timeStamp}_"
-        val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        var newFile: File? = null
-        try {
-            newFile = File.createTempFile(imageFileName, ".jpg", storageDir)
-            val fos = FileOutputStream(newFile)
-            croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
-            fos.flush()
-            fos.close()
-            Log.d("Crop", "Imagen recortada guardada en: ${newFile.absolutePath}")
-            FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.provider",
-                newFile
-            )
-        } catch (e: IOException) {
-            Log.e("Crop", "Error en bloque try-catch de guardado/obtención de URI", e)
-            newFile?.delete()
-            return@withContext null
-        } finally {
-            if (!croppedBitmap.isRecycled) {
-                //croppedBitmap.recycle()
-            }
         }
     }
 }
@@ -234,8 +183,6 @@ fun DermaAppScreen(
     onImageCapturedOrUpdated: (Uri?) -> Unit,
     onShowFullScreenImage: (Uri) -> Unit) {
     val context = LocalContext.current
-    //var imageUri by remember { mutableStateOf<Uri?>(null) }
-    //var imageUriAsync by remember { mutableStateOf<Uri?>(null) }
     var showFullScreenImage by remember { mutableStateOf(false) }
     var imageUriToEdit by remember { mutableStateOf<Uri?>(null) }
     var imageUriForCamera by remember { mutableStateOf<Uri?>(null) }
@@ -424,7 +371,6 @@ fun DermaAppScreen(
             }
         }
     }
-
     if (showFullScreenImage && imageUriToEdit != null) {
         Popup(
             alignment = Alignment.Center,
@@ -506,62 +452,64 @@ fun DermaAppScreen(
 
 @Composable
 fun DermaAppFullScreenImage(uri: Uri, onDismiss: () -> Unit, onCrop: (Uri) -> Unit) {
-    val context = LocalContext.current
-    val coilImageLoader = remember { ImageLoader.Builder(context).logger(DebugLogger()).build() }
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    //val context = LocalContext.current
+    val window = (LocalView.current.context as Activity).window
+    SideEffect {
+        window?.let {
+            val insetsController = WindowCompat.getInsetsController(it, it.decorView)
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+    Popup(
+        alignment = Alignment.Center,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onDismiss, enabled = true)
+        ) {
             Image(
                 painter = painterResource(id = R.drawable.fondo),
                 contentDescription = "Fondo de pantalla completa",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f))
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 AsyncImage(
                     model = uri,
-                    imageLoader = coilImageLoader,
+                    contentDescription = "Imagen a pantalla completa",
                     modifier = Modifier
+                        .fillMaxSize()
                         .weight(1f)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(2.dp, color = Color.Black, RoundedCornerShape(8.dp)),
-                    contentDescription = "Imagen pantalla completa",
-                    contentScale = ContentScale.Crop
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Fit
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Button(
-                        onClick = { onCrop(uri) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.background,
-                            contentColor = MaterialTheme.colorScheme.onBackground
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 8.dp)
-                    ) {
+                    Button(onClick = {
+                        Log.d("FullScreen", "Botón Recortar presionado para URI: $uri")
+                        onCrop(uri)
+                    }) {
                         Text("Recortar")
                     }
-                    Button(
-                        onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.background,
-                            contentColor = MaterialTheme.colorScheme.onBackground
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 8.dp)
-                    ) {
+                    Button(onClick = onDismiss) {
                         Text("Cerrar")
                     }
                 }

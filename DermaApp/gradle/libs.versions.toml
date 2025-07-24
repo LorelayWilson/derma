@@ -1,6 +1,7 @@
 [versions]
 agp = "8.11.1"
-canhubCropper = "4.5.0"
+#edmodoImageCropper = "2.8.0"
+androidImageCropper = "4.5.0"
 coilCompose = "2.6.0"
 kotlin = "2.0.21"
 coreKtx = "1.10.1"
@@ -12,7 +13,8 @@ activityCompose = "1.8.0"
 composeBom = "2024.09.00"
 
 [libraries]
-canhub-cropper = { group = "com.canhub.cropper", name = "cropper", version.ref = "canhubCropper" }
+#edmodo-android-image-cropper = { group = "com.theartofdev.edmodo", name = "android-image-cropper", version.ref = "edmodoImageCropper" }
+vanniktech-android-image-cropper = { group = "com.vanniktech", name = "android-image-cropper", version.ref = "androidImageCropper" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
