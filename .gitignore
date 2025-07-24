@@ -1,7 +1,2 @@
-<<<<<<< HEAD
 dataset/
-*.keras
 .venv
-=======
-dataset/
->>>>>>> a7035131cce512546991aa1d5b8872e63c737e3d
