@@ -65,5 +65,4 @@ dependencies {
     implementation(libs.ui.tooling.preview)
     implementation(libs.material3)
     implementation(libs.coil.compose)
-    //implementation(libs.canhub.cropper)
 }
