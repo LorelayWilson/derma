@@ -7,14 +7,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Card
-import androidx.compose.material3.Divider
+import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,7 +31,6 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ExpandableInfoCard(
-    modifier: Modifier = Modifier,
     title: String,
     probabilityText: String,
     mainContentColor: Color = MaterialTheme.colorScheme.onSurface,
@@ -75,43 +73,14 @@ fun ExpandableInfoCard(
             }
             AnimatedVisibility(visible = isExpanded) {
                 Column {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        thickness = DividerDefaults.Thickness,
+                        color = DividerDefaults.color
+                    )
                     expandedContent()
                 }
             }
         }
-    }
-}
-
-@Composable
-fun ExpandedContext() {
-    Column {
-        Text(
-            "Información detallada:",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "Esta condición se caracteriza por una inflamación de la piel que puede causar enrojecimiento, picazón y descamación. " +
-                    "Suele ser más común en áreas con pliegues cutáneos.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "Posibles Factores:",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            "- Predisposición genética.\n" +
-                    "- Factores ambientales como el clima.\n" +
-                    "- Exposición a ciertos alérgenos o irritantes.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }

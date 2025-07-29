@@ -1,0 +1,9 @@
+Acne
+Benign
+Eczema
+Infectious
+Malign
+Molluscum
+Normal
+Pigmentation
+Warts

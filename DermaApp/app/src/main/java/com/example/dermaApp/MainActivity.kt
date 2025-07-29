@@ -10,11 +10,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.canhub.cropper.*
 import com.canhub.cropper.CropImageView
 import com.example.dermaApp.ui.theme.MyApplicationTheme
@@ -26,7 +29,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                DermaAppNavigator()
+                val dermaViewModel: DermaAppViewModel = viewModel()
+                DermaAppNavigator(dermaViewModel)
             }
         }
     }
@@ -40,15 +44,18 @@ sealed interface Screen {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DermaAppNavigator() {
+fun DermaAppNavigator(dermaViewModel: DermaAppViewModel) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Main) }
     var imageUriAsync by remember { mutableStateOf<Uri?>(null) }
+    var imageRotation by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    val onNavigateToAnalysis: (Uri) -> Unit = { uri ->
+    val onNavigateToAnalysis: (Uri, Int) -> Unit = { uri, rotation ->
+        dermaViewModel.performAnalysis(uri, rotation)
         currentScreen = Screen.AnalysisScreen(uri)
     }
-    val onNavigateBackFromAnalysis: () -> Unit = {
+    val onNavigateBackFromAnalysis = {
         currentScreen = Screen.Main
+        imageUriAsync = null
     }
     val cropActivityLauncher = rememberLauncherForActivityResult(
         contract = CropImageContract()
@@ -76,15 +83,14 @@ fun DermaAppNavigator() {
                 currentImageUri = imageUriAsync,
                 onImageCapturedOrUpdated = { newUri ->
                     imageUriAsync = newUri
+                    //imageRotation = rotationDegrees ?: 0
                 },
                 onShowFullScreenImage = { uriToShow ->
                     currentScreen = Screen.FullScreenImage(uriToShow)
                 },
                 onAnalyseClicked = { uriToAnalyse ->
-                    if (uriToAnalyse != null) {
-                        onNavigateToAnalysis(uriToAnalyse)
-                    } else {
-                        Toast.makeText(context, "No hay imagen para analizar", Toast.LENGTH_SHORT).show()
+                    uriToAnalyse?.let {
+                        onNavigateToAnalysis(it, imageRotation)
                     }
                 }
             )
@@ -107,8 +113,12 @@ fun DermaAppNavigator() {
             )
         }
         is Screen.AnalysisScreen -> {
+            val currentAnalysisPredictions by dermaViewModel.analysisResult.collectAsState()
+            val currentIsLoadingAnalysis by dermaViewModel.isLoadingAnalysis.collectAsState()
             AnalysisResultScreen(
                 imageUri = screen.imageUri,
+                analysisPredictions = currentAnalysisPredictions,
+                isLoading = currentIsLoadingAnalysis,
                 onNavigateBack = onNavigateBackFromAnalysis
             )
         }
